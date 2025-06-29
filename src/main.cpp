@@ -10,18 +10,30 @@ typedef void* (*EncryptFunc)(const unsigned char*, size_t, int, int, size_t*);
 typedef void (*FreeFunc)(void*);
 
 // Считывание файла в вектор
-vector<unsigned char> readFile(const string& filename) {
+vector<unsigned char> readFile(string filename) {
+    // Убираем префикс file:// если есть
+    const string prefix = "file://";
+    if (filename.rfind(prefix, 0) == 0) {
+        filename = filename.substr(prefix.size());
+    }
+
     ifstream in(filename, ios::binary);
-    if (!in) throw runtime_error("Не удалось открыть файл " + filename);
+    if (!in) throw runtime_error("❌ Не удалось открыть файл: " + filename);
     return vector<unsigned char>((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
 }
 
 // Запись вектора в файл
-void writeFile(const string& filename, const vector<unsigned char>& data) {
+void writeFile(string filename, const vector<unsigned char>& data) {
+    const string prefix = "file://";
+    if (filename.rfind(prefix, 0) == 0) {
+        filename = filename.substr(prefix.size());
+    }
+
     ofstream out(filename, ios::binary);
-    if (!out) throw runtime_error("Не удалось записать файл " + filename);
+    if (!out) throw runtime_error("❌ Не удалось записать файл: " + filename);
     out.write(reinterpret_cast<const char*>(data.data()), data.size());
 }
+
 
 // Ввод строки -> вектор
 vector<unsigned char> readText() {
@@ -95,19 +107,46 @@ void runOperation(bool encrypt, bool isFile) {
         // Параметры шифра
         int param1 = 0, param2 = 0;
         if (algo == TABLE) {
-            cout << "Введите 0 для случайных строк/столбцов, или 1 — чтобы задать вручную: ";
+            if (encrypt) {
+                cout << "Введите 0 — авто (рандом), или 1 — вручную задать параметры: ";
+            } else {
+                cout << "Введите 0 — загрузить параметры из файла table_params.txt, или 1 — ввести вручную: ";
+            }
+        
             int mode;
             cin >> mode;
+        
             if (mode == 0) {
-                srand(time(nullptr));
-                param1 = rand() % 5 + 2; // строки [2..6]
-                param2 = rand() % 5 + 2; // столбцы [2..6]
-                cout << "🔁 Случайные параметры: " << param1 << " строк × " << param2 << " столбцов\n";
+                if (encrypt) {
+                    srand(time(nullptr));
+                    param1 = rand() % 5 + 2;
+                    param2 = rand() % 5 + 2;
+                    cout << "🔁 Случайные параметры: " << param1 << " строк × " << param2 << " столбцов\n";
+        
+                    ofstream paramOut("table_params.txt");
+                    if (paramOut) {
+                        paramOut << param1 << " " << param2 << "\n";
+                        paramOut.close();
+                        cout << "📄 Параметры сохранены в table_params.txt\n";
+                    } else {
+                        cerr << "⚠️  Не удалось записать table_params.txt\n";
+                    }
+                } else {
+                    ifstream paramIn("table_params.txt");
+                    if (paramIn >> param1 >> param2) {
+                        cout << "📂 Параметры загружены: " << param1 << " строк × " << param2 << " столбцов\n";
+                    } else {
+                        cerr << "❌ Ошибка чтения table_params.txt. Завершение.\n";
+                        return;
+                    }
+                }
             } else {
                 cout << "Введите количество строк: "; cin >> param1;
                 cout << "Введите количество столбцов: "; cin >> param2;
             }
         }
+        
+        
         else if (algo == VIGENER) {
             cout << "1 — автогенерация ключа, 0 — вручную по seed: ";
             cin >> param1;
