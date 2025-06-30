@@ -16,8 +16,8 @@ USER_ID := $(shell id -u)
 
 # Исходники шифров
 TABLE_SRC = lib/table/table.cpp
-VIG_SRC   = lib/viginer/viginer.cpp
-AES_SRC   = lib/aes/cipher1.cpp lib/aes/aes.cpp
+VIG_SRC   = lib/Viginer/viginer.cpp
+AES_SRC   = lib/Aes/cipher1.cpp lib/Aes/aes.cpp
 
 # Цели библиотек
 SO_TABLE = $(BUILD_DIR)/libtable_cipher$(EXT)
