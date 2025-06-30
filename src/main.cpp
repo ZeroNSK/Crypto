@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <map>
 #include <cstring>
 
 using namespace std;
@@ -162,15 +163,31 @@ void runOperation(bool encrypt, bool isFile) {
         vector<unsigned char> output((unsigned char*)result, (unsigned char*)result + outSize);
         freeBuf(result);
 
-        if (isFile) {
-            string outFile;
-            cout << "Введите имя выходного файла: ";
-            cin >> outFile;
-            writeFile(outFile, output);
-            cout << "Файл сохранён: " << outFile << "\n";
-        } else {
-            printText(output);
-        }
+        string outFile;
+        cout << "Введите имя выходного файла: ";
+        cin >> outFile;
+        writeFile(outFile, output);
+        cout << "📄 Результат сохранён в файл: " << outFile << "\n";
+
+        if (encrypt) {
+            char answer;
+            cout << "\n❓ Хотите сразу расшифровать этот результат? (y/n): ";
+            cin >> answer;
+            if (answer == 'y' || answer == 'Y') {
+                vector<unsigned char> encrypted = readFile(outFile);
+                auto decryptFunc = loadCryptoFunc<EncryptFunc>(lib, "decrypt");
+
+                size_t decSize;
+                void* decrypted = decryptFunc(encrypted.data(), encrypted.size(), param1, param2, &decSize);
+                vector<unsigned char> result((unsigned char*)decrypted, (unsigned char*)decrypted + decSize);
+                freeBuf(decrypted);
+
+                cout << "\n🔓 Расшифрованный текст: ";
+                for (auto c : result) cout << c;
+                cout << "\n";
+    }
+}
+
 
     } catch (const exception& e) {
         cerr << "Ошибка: " << e.what() << "\n";
@@ -181,11 +198,99 @@ void runOperation(bool encrypt, bool isFile) {
     cout << "\033[2J\033[H"; 
 
 }
+void runCLI(int argc, char* argv[]) {
+    map<string, string> args;
+    bool encrypt = false, decrypt = false;
 
-int main() {
-    cout << "\033[2J\033[H";
+    // Парсинг флагов
+    for (int i = 1; i < argc; ++i) {
+        string arg = argv[i];
+        if (arg == "-e") encrypt = true;
+        else if (arg == "-d") decrypt = true;
+        else if (i + 1 < argc) {
+            args[arg] = argv[++i];
+        }
+    }
+
+    if (!encrypt && !decrypt) {
+        cerr << "❌ Укажите -e (encrypt) или -d (decrypt)\n";
+        return;
+    }
+
+    if (!args.count("--cipher")) {
+        cerr << "❌ Укажите алгоритм через --cipher <table|aes|vigener>\n";
+        return;
+    }
+
+    string cipher = args["--cipher"];
+    CryptoAlgo algo;
+    if (cipher == "table") algo = TABLE;
+    else if (cipher == "aes") algo = AES;
+    else if (cipher == "vigener") algo = VIGENER;
+    else {
+        cerr << "❌ Неизвестный алгоритм: " << cipher << "\n";
+        return;
+    }
+
+    void* lib = loadCryptoLib(algo);
+    auto func = loadCryptoFunc<EncryptFunc>(lib, encrypt ? "encrypt" : "decrypt");
+    auto freeBuf = loadCryptoFunc<FreeFunc>(lib, "free_buffer");
+
+    vector<unsigned char> input;
+    if (args.count("--text")) {
+        input = vector<unsigned char>(args["--text"].begin(), args["--text"].end());
+    } else if (args.count("--input")) {
+        input = readFile(args["--input"]);
+    } else {
+        cerr << "❌ Укажите --text или --input <файл>\n";
+        return;
+    }
+
+    int param1 = 0, param2 = 0;
+    if (algo == TABLE) {
+        if (encrypt) {
+            srand(time(nullptr));
+            param1 = rand() % 5 + 2;
+            param2 = rand() % 5 + 2;
+            ofstream out("table_params.txt");
+            out << param1 << " " << param2 << "\n";
+        } else {
+            ifstream in("table_params.txt");
+            if (!(in >> param1 >> param2)) {
+                cerr << "❌ Не удалось загрузить table_params.txt\n";
+                return;
+            }
+        }
+    }
+
+    if (algo == VIGENER) {
+        param1 = 1; param2 = 0;
+    }
+
+    size_t outSize;
+    void* result = func(input.data(), input.size(), param1, param2, &outSize);
+
+    vector<unsigned char> output((unsigned char*)result, (unsigned char*)result + outSize);
+    freeBuf(result);
+
+    if (args.count("--output")) {
+        writeFile(args["--output"], output);
+        cout << "✅ Сохранено в файл: " << args["--output"] << "\n";
+    } else {
+        cout << "🖨 Результат: ";
+        for (auto c : output) cout << c;
+        cout << "\n";
+    }
+}
+
+
+int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "");
-
+    cout << "\033[2J\033[H";
+    if (argc > 1) {
+        runCLI(argc, argv);
+        return 0;
+    }
     while (true) {
         showMenu();
         int choice;
@@ -196,8 +301,12 @@ int main() {
             case 2: runOperation(false, false); break;
             case 3: runOperation(true, true); break;
             case 4: runOperation(false, true); break;
-            case 0: cout << "Выход.\n"; return 0;
-            default: cout << "Неверный выбор.\n";
+            case 0:
+                cout << "Выход.\n";
+                return 0;
+            default:
+                cout << "Неверный выбор.\n";
         }
     }
 }
+
