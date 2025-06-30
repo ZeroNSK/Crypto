@@ -8,11 +8,11 @@ void* loadCryptoLib(CryptoAlgo algo) {
     const std::string ext = ".so";
 #endif
 
-    switch (algo) {
-        case TABLE:   path = "/usr/local/lib/libtable_cipher" + ext; break;
-        case AES:     path = "/usr/local/lib/libaes_cipher" + ext; break;
-        case VIGENER: path = "/usr/local/lib/libvigener_cipher" + ext; break;
-        default: throw std::runtime_error("Неизвестный алгоритм");
+switch (algo) {
+    case TABLE:   path = "/usr/local/lib/crypto_libs/libtable_cipher" + ext; break;
+    case AES:     path = "/usr/local/lib/crypto_libs/libaes_cipher" + ext; break;
+    case VIGENER: path = "/usr/local/lib/crypto_libs/libvigener_cipher" + ext; break;
+    default: throw std::runtime_error("Неизвестный алгоритм");
     }
 
     void* handle = dlopen(path.c_str(), RTLD_LAZY);
